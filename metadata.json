@@ -1,0 +1,5 @@
+{
+  "name": "Video to Reels AI",
+  "description": "Upload a video and get a full transcription with AI-recommended reels.",
+  "requestFramePermissions": []
+}
