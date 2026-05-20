@@ -9,5 +9,4 @@ coverage/
 uploads/
 docs/superpowers/
 .env.example
-README.md
 metadata.json
