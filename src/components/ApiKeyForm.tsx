@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ExternalLink } from 'lucide-react';
 
 export interface ConfigStatus {
   isConfigured: boolean;
@@ -20,6 +20,12 @@ const STT_LABELS: Record<string, string> = {
   deepgram: 'Deepgram API Key',
   soniox: 'Soniox API Key',
   elevenlabs: 'ElevenLabs API Key',
+};
+
+const STT_LINKS: Record<string, string> = {
+  deepgram: 'https://console.deepgram.com/signup',
+  soniox: 'https://soniox.com/dashboard/api-keys',
+  elevenlabs: 'https://elevenlabs.io/app/settings/api-keys',
 };
 
 export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }: Props) {
@@ -58,9 +64,19 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label htmlFor="or-key" className="block text-sm font-medium text-gray-700 mb-1">
-          OpenRouter API Key
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor="or-key" className="text-sm font-medium text-gray-700">
+            OpenRouter API Key
+          </label>
+          <a
+            href="https://openrouter.ai/settings/keys"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            Get a key <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
         <input
           id="or-key"
           type="password"
@@ -88,9 +104,19 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
       </div>
 
       <div>
-        <label htmlFor="stt-key" className="block text-sm font-medium text-gray-700 mb-1">
-          {STT_LABELS[sttProvider]}
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor="stt-key" className="text-sm font-medium text-gray-700">
+            {STT_LABELS[sttProvider]}
+          </label>
+          <a
+            href={STT_LINKS[sttProvider]}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            Get a key <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
         <input
           id="stt-key"
           type="password"
