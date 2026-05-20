@@ -54,10 +54,11 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="or-key" className="block text-sm font-medium text-gray-700 mb-1">
           OpenRouter API Key
         </label>
         <input
+          id="or-key"
           type="password"
           value={openRouterKey}
           onChange={e => setOpenRouterKey(e.target.value)}
@@ -67,10 +68,11 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="gemini-key" className="block text-sm font-medium text-gray-700 mb-1">
           Gemini API Key
         </label>
         <input
+          id="gemini-key"
           type="password"
           value={geminiKey}
           onChange={e => setGeminiKey(e.target.value)}
@@ -80,10 +82,11 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="stt-provider" className="block text-sm font-medium text-gray-700 mb-1">
           Speech-to-text provider
         </label>
         <select
+          id="stt-provider"
           value={sttProvider}
           onChange={e => setSttProvider(e.target.value as typeof sttProvider)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white"
@@ -95,14 +98,15 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="stt-key" className="block text-sm font-medium text-gray-700 mb-1">
           {STT_LABELS[sttProvider]}
         </label>
         <input
+          id="stt-key"
           type="password"
           value={sttKey}
           onChange={e => setSttKey(e.target.value)}
-          placeholder={status?.sttKeyPreview ?? 'Paste key here...'}
+          placeholder={sttProvider === (status?.sttProvider ?? 'soniox') ? (status?.sttKeyPreview ?? 'Paste key here...') : 'Paste key here...'}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
         />
       </div>
