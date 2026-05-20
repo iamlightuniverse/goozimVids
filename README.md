@@ -1,4 +1,4 @@
-# Autoreel
+# GoozimVids
 
 Upload a video, get a full transcript, and let AI pick the best clips to turn into reels.
 
