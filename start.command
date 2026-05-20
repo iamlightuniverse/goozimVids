@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")" || exit 1
 
 BOLD='\033[1m'
 RED='\033[0;31m'
@@ -19,13 +20,16 @@ if ! command -v node &> /dev/null; then
   exit 0
 fi
 
-# cd to the directory containing this script
-cd "$(dirname "$0")"
-
 # Install dependencies on first run
 if [ ! -d "node_modules" ]; then
   printf "${BOLD}Installing dependencies (first run only)...${RESET}\n"
-  npm install
+  if ! npm install; then
+    printf "${RED}${BOLD}✖  Dependency installation failed. Check your internet connection and try again.${RESET}\n"
+    echo ""
+    read -n 1 -s -r -p "Press any key to close..."
+    echo ""
+    exit 1
+  fi
   echo ""
 fi
 
