@@ -108,7 +108,11 @@ export default function App() {
           <div className="flex-1 flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
           </div>
-        ) : configStatus && !configStatus.isConfigured ? (
+        ) : !configStatus ? (
+          <div className="flex-1 flex items-center justify-center text-sm text-gray-500">
+            Could not connect to the local server. Is it running?
+          </div>
+        ) : !configStatus.isConfigured ? (
           <SetupStep status={configStatus} onConfigured={fetchConfig} />
         ) : (
           <>

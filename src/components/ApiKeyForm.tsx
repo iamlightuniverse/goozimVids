@@ -7,6 +7,9 @@ export interface ConfigStatus {
   openRouterPreview: string | null;
   geminiPreview: string | null;
   sttKeyPreview: string | null;
+  hasOpenRouter: boolean;
+  hasGemini: boolean;
+  hasSttKey: boolean;
 }
 
 interface Props {
@@ -36,6 +39,10 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
     setError(null);
     setSaving(true);
     try {
+      if (!openRouterKey.trim() && !geminiKey.trim() && !sttKey.trim()) {
+        setError('Please fill in at least one field.');
+        return;
+      }
       const res = await fetch('/api/config/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

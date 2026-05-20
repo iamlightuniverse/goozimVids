@@ -1111,7 +1111,7 @@ app.get('/api/sessions/:sessionId/process', async (req, res) => {
 
   try {
     const { uploadMode, language, diarize, transcriptionParsed } = pending;
-    const provider = process.env.STT_PROVIDER || 'deepgram';
+    const provider = process.env.STT_PROVIDER || 'soniox';
 
     let transcription: { timestamp: string; text: string }[];
     let wordTimestamps: { word: string; start: number; end: number }[] | undefined;
