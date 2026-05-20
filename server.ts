@@ -5,7 +5,6 @@ import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { spawn } from 'child_process';
-import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@deepgram/sdk';
 import OpenAI from 'openai';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
@@ -21,8 +20,6 @@ const PORT = 3001;
 app.use(express.json({ limit: '5mb' }));
 
 // ── AI clients ───────────────────────────────────────────────────────────────
-
-let ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 let _deepgram: ReturnType<typeof createClient> | null = null;
 function getDeepgram() {
@@ -883,18 +880,15 @@ app.get('/api/config/status', (_req, res) => {
   }
   // Merge with already-loaded process.env so existing deployments work
   const orKey = vars.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
-  const gemKey = vars.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
   const provider = (vars.STT_PROVIDER || process.env.STT_PROVIDER || 'soniox') as string;
   const sttKey = vars[sttEnvKey(provider)] || process.env[sttEnvKey(provider)];
 
   res.json({
     hasOpenRouter: !!orKey,
-    hasGemini: !!gemKey,
     sttProvider: provider,
     hasSttKey: !!sttKey,
-    isConfigured: !!orKey && !!gemKey && !!sttKey,
+    isConfigured: !!orKey && !!sttKey,
     openRouterPreview: maskKey(orKey),
-    geminiPreview: maskKey(gemKey),
     sttKeyPreview: maskKey(sttKey),
   });
 });
@@ -903,9 +897,8 @@ app.get('/api/config/status', (_req, res) => {
 
 app.post('/api/config/save', (req, res) => {
   try {
-    const { openRouterKey, geminiKey, sttProvider, sttKey } = req.body as {
+    const { openRouterKey, sttProvider, sttKey } = req.body as {
       openRouterKey?: string;
-      geminiKey?: string;
       sttProvider?: string;
       sttKey?: string;
     };
@@ -920,11 +913,6 @@ app.post('/api/config/save', (req, res) => {
       vars.OPENROUTER_API_KEY = openRouterKey.trim();
       process.env.OPENROUTER_API_KEY = openRouterKey.trim();
       openrouter = new OpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: openRouterKey.trim() });
-    }
-    if (geminiKey?.trim()) {
-      vars.GEMINI_API_KEY = geminiKey.trim();
-      process.env.GEMINI_API_KEY = geminiKey.trim();
-      ai = new GoogleGenAI({ apiKey: geminiKey.trim() });
     }
     if (sttProvider?.trim()) {
       vars.STT_PROVIDER = sttProvider.trim();
@@ -1175,25 +1163,24 @@ app.get('/api/sessions/:sessionId/process', async (req, res) => {
       sendEvent({ phase: 'summarizing' });
     }
 
-    // Generate AI summary with Gemini
+    // Generate AI summary
     console.log(`[${sessionId}] Generating summary...`);
     const transcriptText = transcription.map((t) => `[${t.timestamp}] ${t.text}`).join('\n');
     const summaryResponse = await withTimeout(
-      ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{
+      openrouter.chat.completions.create({
+        model: 'google/gemma-4-31b-it',
+        messages: [{
           role: 'user',
-          parts: [{ text: uploadMode === 'audio'
+          content: uploadMode === 'audio'
             ? `Here is an audio recording transcript:\n\n${transcriptText}\n\nProvide a concise 2-4 sentence summary of what this recording covers, its main topics, and who might find it useful.`
-            : `Here is a video transcript:\n\n${transcriptText}\n\nProvide a concise 2-4 sentence summary of what this video covers, its main topics, and who might find it useful.`
-          }],
+            : `Here is a video transcript:\n\n${transcriptText}\n\nProvide a concise 2-4 sentence summary of what this video covers, its main topics, and who might find it useful.`,
         }],
-        config: { temperature: 0.3 },
+        temperature: 0.3,
       }),
       90_000,
-      'Gemini summary'
+      'Summary'
     );
-    const summary = summaryResponse.text || 'Summary could not be generated.';
+    const summary = summaryResponse.choices[0]?.message?.content || 'Summary could not be generated.';
 
     // Write complete session.json
     const completeData = {
@@ -1529,10 +1516,10 @@ MULTI-SEGMENT REELS:
 - Briefly explain why combining them creates a stronger reel.`;
 }
 
-function convertHistoryToContents(history: { role: string; content: string }[]) {
+function convertHistory(history: { role: string; content: string }[]): { role: 'user' | 'assistant'; content: string }[] {
   return history.map((msg) => ({
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: msg.content }],
+    role: msg.role === 'assistant' ? 'assistant' : 'user',
+    content: msg.content,
   }));
 }
 
@@ -1556,23 +1543,22 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const systemPrompt = buildChatSystemPrompt(context);
-    const contents = [
-      ...convertHistoryToContents(history || []),
-      { role: 'user', parts: [{ text: message }] },
+    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+      { role: 'system', content: systemPrompt },
+      ...convertHistory(history || []),
+      { role: 'user', content: message },
     ];
 
-    const stream = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
-      contents,
-      config: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-        systemInstruction: systemPrompt,
-      },
+    const stream = await openrouter.chat.completions.create({
+      model: 'google/gemma-4-31b-it',
+      messages,
+      temperature: 0.7,
+      max_tokens: 8192,
+      stream: true,
     });
 
     for await (const chunk of stream) {
-      const text = chunk.text || '';
+      const text = chunk.choices[0]?.delta?.content || '';
       if (text) {
         res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
       }

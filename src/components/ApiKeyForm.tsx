@@ -5,10 +5,8 @@ export interface ConfigStatus {
   isConfigured: boolean;
   sttProvider: 'deepgram' | 'soniox' | 'elevenlabs';
   openRouterPreview: string | null;
-  geminiPreview: string | null;
   sttKeyPreview: string | null;
   hasOpenRouter: boolean;
-  hasGemini: boolean;
   hasSttKey: boolean;
 }
 
@@ -26,7 +24,6 @@ const STT_LABELS: Record<string, string> = {
 
 export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }: Props) {
   const [openRouterKey, setOpenRouterKey] = useState('');
-  const [geminiKey, setGeminiKey] = useState('');
   const [sttProvider, setSttProvider] = useState<'deepgram' | 'soniox' | 'elevenlabs'>(
     status?.sttProvider ?? 'soniox'
   );
@@ -39,14 +36,14 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
     setError(null);
     setSaving(true);
     try {
-      if (!openRouterKey.trim() && !geminiKey.trim() && !sttKey.trim()) {
+      if (!openRouterKey.trim() && !sttKey.trim()) {
         setError('Please fill in at least one field.');
         return;
       }
       const res = await fetch('/api/config/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ openRouterKey, geminiKey, sttProvider, sttKey }),
+        body: JSON.stringify({ openRouterKey, sttProvider, sttKey }),
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Failed to save');
@@ -70,20 +67,6 @@ export function ApiKeyForm({ status, onSaved, submitLabel = 'Save & continue' }:
           value={openRouterKey}
           onChange={e => setOpenRouterKey(e.target.value)}
           placeholder={status?.openRouterPreview ?? 'sk-or-...'}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="gemini-key" className="block text-sm font-medium text-gray-700 mb-1">
-          Gemini API Key
-        </label>
-        <input
-          id="gemini-key"
-          type="password"
-          value={geminiKey}
-          onChange={e => setGeminiKey(e.target.value)}
-          placeholder={status?.geminiPreview ?? 'AIza...'}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
         />
       </div>
