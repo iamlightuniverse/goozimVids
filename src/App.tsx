@@ -39,10 +39,15 @@ export default function App() {
   }, [reels, sessionId]);
 
   const fetchConfig = async () => {
-    const res = await fetch('/api/config/status');
-    const data = await res.json();
-    setConfigStatus(data);
-    setConfigLoading(false);
+    try {
+      const res = await fetch('/api/config/status');
+      const data = await res.json();
+      setConfigStatus(data);
+    } catch {
+      setConfigStatus(null);
+    } finally {
+      setConfigLoading(false);
+    }
   };
 
   useEffect(() => { fetchConfig(); }, []);
@@ -94,7 +99,9 @@ export default function App() {
         </div>
       </header>
 
-      <StepIndicator currentStep={currentStep} />
+      {!configLoading && configStatus?.isConfigured && (
+        <StepIndicator currentStep={currentStep} />
+      )}
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 pb-6 flex flex-col">
         {configLoading ? (
