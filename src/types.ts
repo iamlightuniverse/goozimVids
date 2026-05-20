@@ -17,6 +17,20 @@ export interface ReelSegment {
   transcriptExcerpt?: string;
 }
 
+export interface VideoMetadata {
+  width: number;
+  height: number;
+  orientation: 'horizontal' | 'vertical';
+  durationSeconds: number;
+  fps?: number;
+}
+
+export interface SpeakerTimestamp {
+  speaker: string;
+  start: number;
+  end: number;
+}
+
 export interface Reel {
   title: string;
   hookReason?: string;
@@ -25,6 +39,9 @@ export interface Reel {
   multiSegmentExplanation?: string;
   multiSegmentReason?: string;
   segments: ReelSegment[];
+  subtitleOverrides?: WordTimestamp[];
+  orientationOverride?: 'horizontal' | 'vertical';
+  interactionType?: 'exchange';
 }
 
 export interface VideoAnalysis {
@@ -63,10 +80,64 @@ export const CAPTION_PRESETS: Record<CaptionPresetId, { label: string; descripti
   outline: { label: 'Outline', description: 'No background, outlined text' },
 };
 
+export type UploadMode = 'highlight' | 'interaction' | 'audio';
+
+export type TranscribePhase = 'extracting_audio' | 'transcribing' | 'summarizing' | 'complete' | 'error';
+
+export interface UploadResponse {
+  sessionId: string;
+  videoMetadata?: VideoMetadata;
+}
+
+export interface SessionSummary {
+  sessionId: string;
+  createdAt: string;
+  originalFilename: string;
+  uploadMode: UploadMode;
+  videoMetadata?: VideoMetadata;
+  summary: string;
+  reelCount: number;
+  videoExists: boolean;
+}
+
+export interface SessionData {
+  sessionId: string;
+  createdAt: string;
+  originalFilename: string;
+  uploadMode: UploadMode;
+  videoMetadata?: VideoMetadata;
+  transcription: TranscriptionLine[];
+  wordTimestamps: WordTimestamp[];
+  speakerTimestamps?: SpeakerTimestamp[];
+  summary: string;
+  expired?: boolean;
+}
+
 export interface TranscribeResponse {
   transcription: TranscriptionLine[];
   summary: string;
   wordTimestamps?: WordTimestamp[];
+  videoMetadata?: VideoMetadata;
+  sessionId?: string;
+  speakerTimestamps?: SpeakerTimestamp[];
+  uploadMode?: UploadMode;
+}
+
+export interface ExportReelRequest {
+  sessionId: string;
+  segments: ReelSegment[];
+  subtitleOverrides?: WordTimestamp[];
+  wordTimestamps?: WordTimestamp[];
+  orientation: 'horizontal' | 'vertical';
+  burnSubtitles: boolean;
+  reelTitle: string;
+}
+
+export interface ExportProgressEvent {
+  phase: 'encoding' | 'complete' | 'error';
+  percent?: number;
+  downloadPath?: string;
+  message?: string;
 }
 
 export interface GuidedConfig {
@@ -75,11 +146,20 @@ export interface GuidedConfig {
   complexEdits?: boolean;
 }
 
+export interface CreativeBrief {
+  platform?: 'tiktok' | 'instagram' | 'youtube' | 'linkedin';
+  purpose?: 'grow' | 'educate' | 'entertain' | 'traffic' | 'authority';
+  tone?: 'professional' | 'casual' | 'funny' | 'inspirational' | 'provocative' | 'storytelling';
+  contentFocus?: string;
+}
+
 export interface GenerateReelsRequest {
   transcription: TranscriptionLine[];
   mode: 'guided' | 'custom';
   guided?: GuidedConfig;
   customPrompt?: string;
+  creativeBrief?: CreativeBrief;
+  wordTimestamps?: WordTimestamp[];
 }
 
 export interface InterpretPromptResponse {
@@ -104,6 +184,12 @@ export interface RegenerateReelResponse {
   reel: Reel;
 }
 
+export interface GenerationProgress {
+  phase: 'sending' | 'streaming' | 'parsing' | 'complete';
+  charsReceived: number;
+  reelCount: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -116,6 +202,7 @@ export interface ChatContext {
   summary: string;
   transcription: { timestamp: string; text: string }[];
   reels: { title: string; description: string; inTimestamp: string; outTimestamp: string }[];
+  activeReel?: { index: number; title: string; description: string; inTimestamp: string; outTimestamp: string };
 }
 
 export interface ChatAction {

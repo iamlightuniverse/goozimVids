@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, ArrowRight, ChevronDown, Download, Play, MessageCircle, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { TranscriptionLine, Reel, WordTimestamp, CaptionStyle, ChatContext, ChatAction } from '../types';
+import { TranscriptionLine, Reel, WordTimestamp, CaptionStyle, ChatContext, ChatAction, VideoMetadata } from '../types';
 import { ReelCard } from './ReelCard';
 import { FeedView } from './FeedView';
 import { ExportReelsButton } from './ExportReelsButton';
@@ -12,6 +12,7 @@ interface Props {
   transcription: TranscriptionLine[];
   reels: Reel[];
   videoFile: File | null;
+  videoUrl?: string | null;
   wordTimestamps?: WordTimestamp[];
   captionStyle?: CaptionStyle;
   onCaptionStyleChange?: (style: CaptionStyle) => void;
@@ -19,12 +20,16 @@ interface Props {
   onStartOver: () => void;
   onReelsChange: (reels: Reel[]) => void;
   summary: string;
+  videoOrientation?: 'horizontal' | 'vertical';
+  sessionId?: string | null;
+  videoMetadata?: VideoMetadata;
 }
 
 export function ResultsStep({
   transcription,
   reels,
   videoFile,
+  videoUrl: videoUrlProp,
   wordTimestamps,
   captionStyle,
   onCaptionStyleChange,
@@ -32,8 +37,12 @@ export function ResultsStep({
   onStartOver,
   onReelsChange,
   summary,
+  videoOrientation = 'vertical',
+  sessionId,
+  videoMetadata,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [feedActiveIndex, setFeedActiveIndex] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showFeed, setShowFeed] = useState(false);
@@ -42,6 +51,8 @@ export function ResultsStep({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Chat state
+  const activeReelIndex = showFeed ? feedActiveIndex : currentIndex;
+  const activeReelData = reels[activeReelIndex];
   const chatContext: ChatContext = {
     summary,
     transcription,
@@ -51,6 +62,13 @@ export function ResultsStep({
       inTimestamp: r.segments[0]?.inTimestamp || '',
       outTimestamp: r.segments[r.segments.length - 1]?.outTimestamp || '',
     })),
+    activeReel: activeReelData ? {
+      index: activeReelIndex,
+      title: activeReelData.title,
+      description: activeReelData.description,
+      inTimestamp: activeReelData.segments[0]?.inTimestamp || '',
+      outTimestamp: activeReelData.segments[activeReelData.segments.length - 1]?.outTimestamp || '',
+    } : undefined,
   };
   const { messages: chatMessages, isStreaming: isChatStreaming, sendMessage: onChatSend, stopStreaming: onChatStop, clearChat: onChatClear } = useChatState(chatContext);
 
@@ -85,9 +103,32 @@ export function ResultsStep({
           }),
         });
         if (!res.ok) throw new Error('Failed to generate reel.');
-        const data = await res.json();
-        if (data.reels?.length) {
-          onReelsChange([...reels, ...data.reels]);
+
+        // Endpoint returns SSE stream — read until 'complete' event
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let generatedReels: Reel[] | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop()!;
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const event = JSON.parse(line.slice(6));
+            if (event.phase === 'complete' && event.reels) {
+              generatedReels = event.reels;
+            } else if (event.phase === 'error') {
+              throw new Error(event.message || 'Generation failed.');
+            }
+          }
+        }
+
+        if (generatedReels?.length) {
+          onReelsChange([...reels, ...generatedReels]);
         }
         break;
       }
@@ -126,12 +167,34 @@ export function ResultsStep({
   }, [transcription, reels, onReelsChange]);
 
   useEffect(() => {
+    if (videoUrlProp) {
+      setVideoUrl(videoUrlProp);
+      return;
+    }
     if (videoFile) {
       const url = URL.createObjectURL(videoFile);
       setVideoUrl(url);
       return () => URL.revokeObjectURL(url);
     }
-  }, [videoFile]);
+  }, [videoFile, videoUrlProp]);
+
+  // Pre-render all reels in the background when the results page first loads
+  useEffect(() => {
+    if (!sessionId || !reels.length) return;
+    reels.forEach((reel) => {
+      fetch(`/api/sessions/${sessionId}/prerender`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          segments: reel.segments,
+          orientation: videoOrientation,
+          burnSubtitles: false,
+          subtitleOverrides: reel.subtitleOverrides,
+          wordTimestamps,
+        }),
+      }).catch(() => {});
+    });
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -334,6 +397,8 @@ export function ResultsStep({
           captionStyle={captionStyle}
           onCaptionStyleChange={onCaptionStyleChange}
           onReelUpdated={handleReelUpdated}
+          videoOrientation={videoOrientation}
+          sessionId={sessionId}
         />
       </div>
 
@@ -349,6 +414,7 @@ export function ResultsStep({
           captionStyle={captionStyle}
           onCaptionStyleChange={onCaptionStyleChange}
           onClose={() => setShowFeed(false)}
+          onActiveIndexChange={setFeedActiveIndex}
           onReelUpdated={(index, newReel) => {
             const updated = [...reels];
             updated[index] = newReel;

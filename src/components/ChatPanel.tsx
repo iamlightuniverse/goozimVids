@@ -212,7 +212,7 @@ export function ChatPanel({
       }`}>
         <div className="flex items-center gap-2">
           <Sparkles className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
-          <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Reely</span>
+          <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Goozim</span>
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (
@@ -245,13 +245,11 @@ export function ChatPanel({
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-5 px-4">
             <div className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              <div className={`w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center ${
-                isDark ? 'bg-indigo-500/20' : 'bg-indigo-50'
-              }`}>
-                <Sparkles className={`w-6 h-6 ${isDark ? 'text-indigo-400' : 'text-indigo-500'}`} />
+              <div className="w-12 h-12 rounded-2xl mx-auto mb-3 overflow-hidden">
+                <img src="/goozim-avatar.png" alt="Goozim" className="w-full h-full object-cover" />
               </div>
               <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Hey, I'm Reely!
+                Hey, I'm Goozim!
               </p>
               <p className="text-xs leading-relaxed max-w-[220px] mx-auto">
                 I know your video inside and out. Ask me anything or pick a prompt below.
@@ -285,10 +283,8 @@ export function ChatPanel({
             return (
               <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start gap-1.5'}`}>
                 {!isUser && (
-                  <div className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center mt-0.5 ${
-                    isDark ? 'bg-indigo-500/30' : 'bg-indigo-100'
-                  }`}>
-                    <Sparkles className={`w-2.5 h-2.5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                  <div className="w-5 h-5 rounded-full shrink-0 overflow-hidden mt-0.5">
+                    <img src="/goozim-avatar.png" alt="Goozim" className="w-full h-full object-cover" />
                   </div>
                 )}
                 <div className={`max-w-[80%] px-3 py-2 text-xs leading-relaxed ${

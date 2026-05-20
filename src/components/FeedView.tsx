@@ -26,6 +26,7 @@ interface Props {
   onChatStop?: () => void;
   onChatClear?: () => void;
   onAction?: (action: ChatAction) => Promise<void>;
+  onActiveIndexChange?: (index: number) => void;
 }
 
 export function FeedView({
@@ -47,6 +48,7 @@ export function FeedView({
   onChatStop,
   onChatClear,
   onAction,
+  onActiveIndexChange,
 }: Props) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -116,7 +118,10 @@ export function FeedView({
         for (const entry of entries) {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
             const idx = cards.indexOf(entry.target as HTMLDivElement);
-            if (idx !== -1) setActiveIndex(idx);
+            if (idx !== -1) {
+              setActiveIndex(idx);
+              onActiveIndexChange?.(idx);
+            }
           }
         }
       },

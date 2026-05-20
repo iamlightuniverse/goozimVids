@@ -1,16 +1,17 @@
 import React from 'react';
 import { Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
-import { TranscriptionLine } from '../types';
+import { TranscriptionLine, UploadMode } from '../types';
 import { TranscriptionPanel } from './TranscriptionPanel';
 
 interface Props {
   summary: string;
   transcription: TranscriptionLine[];
+  uploadMode?: UploadMode;
   onBack: () => void;
   onNext: () => void;
 }
 
-export function SummaryStep({ summary, transcription, onBack, onNext }: Props) {
+export function SummaryStep({ summary, transcription, uploadMode, onBack, onNext }: Props) {
   return (
     <div className="flex flex-col gap-6 flex-1 min-h-0">
       {/* Summary Card */}
@@ -22,13 +23,8 @@ export function SummaryStep({ summary, transcription, onBack, onNext }: Props) {
         <p className="text-gray-700 leading-relaxed">{summary}</p>
       </div>
 
-      {/* Transcription */}
-      <div className="flex-1 min-h-0">
-        <TranscriptionPanel transcription={transcription} />
-      </div>
-
-      {/* Navigation */}
-      <div className="flex items-center justify-between py-2">
+      {/* Navigation — above transcript so user doesn't have to scroll */}
+      <div className="flex items-center justify-between">
         <button
           onClick={onBack}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
@@ -36,13 +32,20 @@ export function SummaryStep({ summary, transcription, onBack, onNext }: Props) {
           <ArrowLeft className="w-4 h-4" />
           Back
         </button>
-        <button
-          onClick={onNext}
-          className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium shadow-sm transition-colors"
-        >
-          Configure Reels
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        {uploadMode !== 'audio' && (
+          <button
+            onClick={onNext}
+            className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium shadow-sm transition-colors"
+          >
+            Configure Reels
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Transcription */}
+      <div className="flex-1 min-h-0">
+        <TranscriptionPanel transcription={transcription} />
       </div>
     </div>
   );

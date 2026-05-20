@@ -13,8 +13,10 @@ interface Props {
   segments: ReelSegment[];
   transcription: TranscriptionLine[];
   wordTimestamps?: WordTimestamp[];
+  subtitleOverrides?: WordTimestamp[];
   captionsEnabled: boolean;
   captionStyle?: CaptionStyle;
+  orientation?: 'horizontal' | 'vertical';
   /** When provided, controls play/pause externally (used by FeedView). */
   isActive?: boolean;
   /** When true, video fills parent with no maxHeight or rounded corners */
@@ -38,21 +40,39 @@ const timeToSeconds = (timeStr: string) => {
   return 0;
 };
 
+function findSegmentStartTime(inTimestamp: string, wordTimestamps: WordTimestamp[]): number {
+  const inSec = timeToSeconds(inTimestamp);
+  if (wordTimestamps.length === 0) return inSec;
+
+  // Snap forward to the first word starting at or after the IN timestamp.
+  // This eliminates dead air / previous-sentence audio before the hook.
+  // Tiny backward tolerance (-0.1s) handles floating-point and sub-second rounding.
+  for (const w of wordTimestamps) {
+    if (w.start >= inSec - 0.1) return w.start;
+  }
+
+  return inSec;
+}
+
 function findSegmentEndTime(outTimestamp: string, wordTimestamps: WordTimestamp[]): number {
   const outSec = timeToSeconds(outTimestamp);
 
   if (wordTimestamps.length === 0) return outSec + 0.5;
 
+  // AI uses integer-second [HH:MM:SS] format, so the last intended word
+  // may start up to ~0.9s after the timestamp. Use +0.8s tolerance.
   let lastWord: WordTimestamp | null = null;
   for (const w of wordTimestamps) {
-    if (w.start <= outSec + 0.1) {
+    if (w.start <= outSec + 0.8) {
       lastWord = w;
     } else {
       break;
     }
   }
 
-  return lastWord ? lastWord.end : outSec + 0.5;
+  // Subtract a tiny buffer (50ms) from word.end to trim trailing silence
+  // that STT providers sometimes include after the spoken audio.
+  return lastWord ? lastWord.end - 0.05 : outSec + 0.5;
 }
 
 export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlayer({
@@ -60,8 +80,10 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
   segments,
   transcription,
   wordTimestamps,
+  subtitleOverrides,
   captionsEnabled,
   captionStyle,
+  orientation = 'vertical',
   isActive,
   fillScreen = false,
   showSegmentCounter = true,
@@ -97,20 +119,27 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
     return approximateWordTimestamps(transcription);
   }, [wordTimestamps, transcription]);
 
-  const segmentEndTimes = useMemo(() => {
-    return segments.map((seg) => findSegmentEndTime(seg.outTimestamp, resolvedWordTimestamps));
+  const segmentStartTimes = useMemo(() => {
+    return segments.map((seg) => findSegmentStartTime(seg.inTimestamp, resolvedWordTimestamps));
   }, [segments, resolvedWordTimestamps]);
+
+  const segmentEndTimes = useMemo(() => {
+    return segments.map((seg, i) => {
+      const end = findSegmentEndTime(seg.outTimestamp, resolvedWordTimestamps);
+      const start = segmentStartTimes[i];
+      // Guard against swapped timestamps: ensure end > start
+      return end > start ? end : start + 1;
+    });
+  }, [segments, resolvedWordTimestamps, segmentStartTimes]);
 
   // Total duration across all segments (for progress bar)
   const totalDuration = useMemo(() => {
-    return segments.reduce((sum, seg, i) => {
-      const start = timeToSeconds(seg.inTimestamp);
-      const end = segmentEndTimes[i];
-      return sum + (end - start);
+    return segments.reduce((sum, _seg, i) => {
+      return sum + (segmentEndTimes[i] - segmentStartTimes[i]);
     }, 0);
-  }, [segments, segmentEndTimes]);
+  }, [segments, segmentStartTimes, segmentEndTimes]);
 
-  const handleTimeUpdate = useCallback(() => {
+  const handleTimeCheck = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.paused) return;
 
@@ -123,9 +152,9 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
     if (fillScreen && totalDuration > 0) {
       let completed = 0;
       for (let i = 0; i < idx; i++) {
-        completed += segmentEndTimes[i] - timeToSeconds(segments[i].inTimestamp);
+        completed += segmentEndTimes[i] - segmentStartTimes[i];
       }
-      const segStart = timeToSeconds(segments[idx].inTimestamp);
+      const segStart = segmentStartTimes[idx];
       const currentInSegment = Math.max(0, video.currentTime - segStart);
       setProgress(Math.min(1, (completed + currentInSegment) / totalDuration));
     }
@@ -135,45 +164,68 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
         const nextIndex = idx + 1;
         segmentIndexRef.current = nextIndex;
         setCurrentSegmentIndex(nextIndex);
-        video.currentTime = timeToSeconds(segments[nextIndex].inTimestamp);
+        video.currentTime = segmentStartTimes[nextIndex];
       } else {
         segmentIndexRef.current = 0;
         setCurrentSegmentIndex(0);
-        video.currentTime = timeToSeconds(segments[0].inTimestamp);
+        video.currentTime = segmentStartTimes[0];
         setProgress(0);
       }
     }
-  }, [segments, segmentEndTimes, fillScreen, totalDuration]);
+  }, [segments, segmentStartTimes, segmentEndTimes, fillScreen, totalDuration]);
+
+  // Use rAF loop for ~16ms granularity on segment boundary checks
+  // (timeupdate fires every ~250ms which causes noticeable overshoot)
+  const rafIdRef = useRef<number>(0);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [handleTimeUpdate]);
+    let running = true;
+    const tick = () => {
+      if (!running) return;
+      handleTimeCheck();
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+
+    const onPlay = () => { running = true; tick(); };
+    const onPause = () => { running = false; cancelAnimationFrame(rafIdRef.current); };
+
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+
+    // Start loop if already playing
+    if (!video.paused) tick();
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(rafIdRef.current);
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+    };
+  }, [handleTimeCheck]);
 
   useEffect(() => {
     if (videoRef.current && segments.length > 0) {
-      videoRef.current.currentTime = timeToSeconds(segments[0].inTimestamp);
+      videoRef.current.currentTime = segmentStartTimes[0];
     }
-  }, [segments, videoUrl]);
+  }, [segments, segmentStartTimes, videoUrl]);
 
   const handlePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const idx = segmentIndexRef.current;
-    const seg = segments[idx];
-    if (!seg) return;
+    if (idx >= segments.length) return;
 
-    const inTime = timeToSeconds(seg.inTimestamp);
+    const inTime = segmentStartTimes[idx];
     const endTime = segmentEndTimes[idx];
 
     if (video.currentTime < inTime - 0.5 || video.currentTime > endTime) {
       video.currentTime = inTime;
     }
-  }, [segments, segmentEndTimes]);
+  }, [segments, segmentStartTimes, segmentEndTimes]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -213,14 +265,14 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
       if (wasActive === false) {
         segmentIndexRef.current = 0;
         setCurrentSegmentIndex(0);
-        video.currentTime = timeToSeconds(segments[0].inTimestamp);
+        video.currentTime = segmentStartTimes[0];
         setProgress(0);
       }
       video.play().catch(() => {});
     } else {
       video.pause();
     }
-  }, [isActive, segments]);
+  }, [isActive, segments, segmentStartTimes]);
 
   // Click-to-play/pause handler
   const handleVideoClick = useCallback(() => {
@@ -262,9 +314,8 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
     }
   }, [isMuted]);
 
-  const currentSegment = segments[currentSegmentIndex];
-  const segStartTime = currentSegment ? timeToSeconds(currentSegment.inTimestamp) : 0;
-  const segEndTime = currentSegment ? segmentEndTimes[currentSegmentIndex] : 0;
+  const segStartTime = segmentStartTimes[currentSegmentIndex] ?? 0;
+  const segEndTime = segmentEndTimes[currentSegmentIndex] ?? 0;
 
   const containerClass = fillScreen
     ? 'overflow-hidden bg-black relative w-full h-full'
@@ -272,7 +323,9 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
 
   const containerStyle = fillScreen
     ? undefined
-    : { aspectRatio: '9 / 16', maxHeight: '70vh' };
+    : orientation === 'horizontal'
+      ? { aspectRatio: '16 / 9', maxHeight: '70vh' }
+      : { aspectRatio: '9 / 16', maxHeight: '70vh' };
 
   return (
     <div className={containerClass} style={containerStyle}>
@@ -289,7 +342,8 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
       <video
         ref={videoRef}
         src={videoUrl}
-        className={`w-full h-full ${fillScreen ? 'object-contain' : 'object-cover'}`}
+        className="w-full h-full object-cover"
+        style={{ objectPosition: 'center' }}
         muted
         playsInline
       />
@@ -345,6 +399,7 @@ export const ReelPlayer = forwardRef<ReelPlayerHandle, Props>(function ReelPlaye
           segmentStartTime={segStartTime}
           segmentEndTime={segEndTime}
           captionStyle={captionStyle}
+          wordTimestampOverride={subtitleOverrides}
         />
       )}
     </div>

@@ -20,6 +20,7 @@ interface Props {
   segmentStartTime: number;
   segmentEndTime: number;
   captionStyle?: CaptionStyle;
+  wordTimestampOverride?: WordTimestamp[];
 }
 
 /**
@@ -219,7 +220,8 @@ export function approximateWordTimestamps(transcription: TranscriptionLine[]): W
   return result;
 }
 
-export function CaptionOverlay({ videoRef, wordTimestamps, segmentStartTime, segmentEndTime, captionStyle }: Props) {
+export function CaptionOverlay({ videoRef, wordTimestamps, segmentStartTime, segmentEndTime, captionStyle, wordTimestampOverride }: Props) {
+  const effectiveWordTimestamps = wordTimestampOverride ?? wordTimestamps;
   const style = captionStyle || DEFAULT_CAPTION_STYLE;
   const [currentTime, setCurrentTime] = useState(0);
   const rafRef = useRef<number>(0);
@@ -228,18 +230,18 @@ export function CaptionOverlay({ videoRef, wordTimestamps, segmentStartTime, seg
   const wordsPerLine = style.wordsPerLine ?? 3;
 
   const groups = useMemo(
-    () => buildCaptionGroups(wordTimestamps, segmentStartTime, segmentEndTime, wordsPerLine),
-    [wordTimestamps, segmentStartTime, segmentEndTime, wordsPerLine],
+    () => buildCaptionGroups(effectiveWordTimestamps, segmentStartTime, segmentEndTime, wordsPerLine),
+    [effectiveWordTimestamps, segmentStartTime, segmentEndTime, wordsPerLine],
   );
 
   const sentences = useMemo(
-    () => buildKaraokeSentences(wordTimestamps, segmentStartTime, segmentEndTime),
-    [wordTimestamps, segmentStartTime, segmentEndTime],
+    () => buildKaraokeSentences(effectiveWordTimestamps, segmentStartTime, segmentEndTime),
+    [effectiveWordTimestamps, segmentStartTime, segmentEndTime],
   );
 
   const filteredWords = useMemo(
-    () => wordTimestamps.filter((w) => w.start >= segmentStartTime - 0.05 && w.end <= segmentEndTime + 0.05),
-    [wordTimestamps, segmentStartTime, segmentEndTime],
+    () => effectiveWordTimestamps.filter((w) => w.start >= segmentStartTime - 0.05 && w.end <= segmentEndTime + 0.05),
+    [effectiveWordTimestamps, segmentStartTime, segmentEndTime],
   );
 
   useEffect(() => {
