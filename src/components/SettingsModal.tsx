@@ -23,14 +23,18 @@ export function SettingsModal({ status, onClose, onSaved }: Props) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-xl p-8 mx-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">API Keys</h2>
+          <h2 id="settings-modal-title" className="text-lg font-semibold text-gray-900">API Keys</h2>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="text-gray-400 hover:text-gray-700 transition-colors"
           >
             <X className="w-5 h-5" />
