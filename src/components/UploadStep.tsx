@@ -107,6 +107,7 @@ export function UploadStep({ onComplete, onImport }: Props) {
   };
 
   const [uploadMode, setUploadMode] = useState<UploadMode>('highlight');
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
   const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing' | 'done'>('idle');
@@ -432,8 +433,18 @@ export function UploadStep({ onComplete, onImport }: Props) {
                         <span className="text-rose-500">*</span>
                       </label>
                       <div
+                        onDragOver={e => { e.preventDefault(); setIsDraggingOver(true); }}
+                        onDragLeave={() => setIsDraggingOver(false)}
+                        onDrop={e => {
+                          e.preventDefault();
+                          setIsDraggingOver(false);
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) { setVideoFile(file); setError(null); }
+                        }}
                         className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-                          videoFile
+                          isDraggingOver
+                            ? 'border-indigo-400 bg-indigo-50'
+                            : videoFile
                             ? uploadMode === 'audio'
                               ? 'border-teal-500 bg-teal-50/50'
                               : 'border-indigo-500 bg-indigo-50/50'
@@ -477,7 +488,7 @@ export function UploadStep({ onComplete, onImport }: Props) {
                               <Upload className="w-5 h-5 text-gray-400" />
                             </div>
                             <p className="font-medium text-gray-900">
-                              Click to upload {uploadMode === 'audio' ? 'audio' : 'video'}
+                              {isDraggingOver ? 'Drop to upload' : `Drag & drop or select a ${uploadMode === 'audio' ? 'audio' : 'video'} file`}
                             </p>
                             <p className="text-sm text-gray-500">
                               {uploadMode === 'audio' ? 'MP3, WAV, M4A, OGG, FLAC' : 'MP4, WebM, MOV'}
