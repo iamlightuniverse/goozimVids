@@ -97,7 +97,7 @@ function parseEnvFile(content: string): Record<string, string> {
 }
 
 function writeEnvFile(vars: Record<string, string>): string {
-  return Object.entries(vars).map(([k, v]) => `${k}="${v}"`).join('\n') + '\n';
+  return Object.entries(vars).map(([k, v]) => `${k}="${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join('\n') + '\n';
 }
 
 function maskKey(key: string | undefined): string | null {
@@ -940,7 +940,7 @@ app.post('/api/config/save', (req, res) => {
     fs.writeFileSync(envPath, writeEnvFile(vars));
     res.json({ ok: true });
   } catch (err: any) {
-    res.json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
